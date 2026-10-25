@@ -1,0 +1,50 @@
+[project]
+name = "yazio_mcp"
+version = "0.1.0"
+description = "Unofficial MCP server for the private YAZIO API"
+readme = "README.md"
+authors = [
+    { name = "martinp2003-debug", email = "martin.potier@student-cs.fr" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=4,<5",
+    "httpx>=0.28,<1",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+    "starlette>=0.40,<2",
+]
+
+[project.scripts]
+yazio-mcp = "yazio_mcp.server:main"
+
+[build-system]
+requires = ["uv_build>=0.13.3,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "yazio_mcp"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src", "tests"]
