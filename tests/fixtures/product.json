@@ -1,0 +1,26 @@
+{
+  "name": "Sanitized product",
+  "producer": null,
+  "category": "sanitized",
+  "base_unit": "g",
+  "is_verified": true,
+  "is_private": false,
+  "is_deleted": false,
+  "has_ean": false,
+  "nutrients": {
+    "energy.energy": 1.25,
+    "nutrient.protein": 0.05
+  },
+  "servings": [
+    {
+      "serving": "portion",
+      "amount": 100,
+      "observed_extension": "accepted"
+    }
+  ],
+  "eans": [],
+  "language": "fr",
+  "countries": ["FR"],
+  "updated_at": "2026-10-01T12:30:00Z",
+  "observed_extension": "accepted"
+}

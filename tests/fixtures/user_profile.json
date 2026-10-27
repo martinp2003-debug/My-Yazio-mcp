@@ -1,0 +1,24 @@
+{
+  "first_name": "Sanitized",
+  "sex": "not_specified",
+  "country": "FR",
+  "language": "fr",
+  "timezone_offset": 2,
+  "goal": "maintain",
+  "diet": {
+    "name": "balanced",
+    "carb_percentage": 50,
+    "fat_percentage": 30,
+    "protein_percentage": 20,
+    "observed_extension": true
+  },
+  "registration_date": "2026-01-01",
+  "user_token": "redacted",
+  "start_weight": 70,
+  "uuid": "00000000-0000-0000-0000-000000000000",
+  "body_height": 175,
+  "date_of_birth": "2000-01-01",
+  "email": "sanitized@example.invalid",
+  "tags": [],
+  "observed_extension": "accepted"
+}

@@ -87,22 +87,17 @@ réponse Pydantic doivent utiliser `ConfigDict(extra="allow")`.
 - Route `GET /health` et outil MCP `health_check`, sans appel à YAZIO.
 - Tests locaux, Ruff, mypy et fichier `uv.lock` opérationnels.
 
+### Phase 2 — Configuration et modèles : terminée
+
+- Configuration YAZIO chargée par `pydantic-settings`, avec secrets masqués.
+- URL v22 et timeouts HTTP configurables et validés localement.
+- Modèles d’authentification, utilisateur, produits et journal tolérants aux
+  champs inconnus.
+- Catégories `products`, `simple_products` et `recipe_portions` distinctes.
+- Dates et heures connues normalisées par la validation des réponses.
+- Fixtures sanitisées et tests locaux, sans appel réseau.
+
 ## Plan restant
-
-### Phase 2 — Configuration et modèles
-
-- Charger avec `pydantic-settings` : `YAZIO_USERNAME`, `YAZIO_PASSWORD`,
-  `YAZIO_API_BASE_URL`, `YAZIO_USER_AGENT` et les timeouts HTTP.
-- Utiliser `SecretStr` et empêcher l’exposition des secrets dans les erreurs,
-  représentations et logs.
-- Utiliser par défaut `https://yzapi.yazio.com/v22`.
-- Créer les modèles d’authentification, utilisateur, produits et journal.
-- Représenter séparément `products`, `simple_products` et
-  `recipe_portions`.
-- Normaliser dates et heures à la frontière de l’adaptateur.
-- Tester la configuration, les fixtures et la tolérance aux champs inconnus.
-
-Critère de sortie : modèles et paramètres validés localement, sans réseau.
 
 ### Phase 3 — Port, adaptateur et authentification
 

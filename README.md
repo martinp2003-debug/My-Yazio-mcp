@@ -10,7 +10,7 @@ API privée v22.
 
 ## État actuel
 
-La phase 1 est terminée :
+Les phases 1 et 2 sont terminées :
 
 - serveur FastMCP 4 en Streamable HTTP ;
 - endpoint MCP `http://127.0.0.1:8000/mcp` ;
@@ -18,6 +18,11 @@ La phase 1 est terminée :
 - tests locaux avec pytest ;
 - contrôles Ruff et mypy ;
 - aucun appel à YAZIO pour les contrôles de santé.
+- configuration YAZIO validée avec `pydantic-settings` et secrets masqués ;
+- modèles Pydantic pour l’authentification, l’utilisateur, les produits, le
+  journal et le résumé quotidien ;
+- fixtures sanitisées et validation locale tolérante aux champs inconnus ;
+- aucune connexion à YAZIO dans les tests standards.
 
 Le plan détaillé et les règles de contribution se trouvent dans
 [AGENTS.md](AGENTS.md).
@@ -51,8 +56,8 @@ flowchart LR
     class G config;
 ```
 
-Seule la couche FastMCP et les contrôles de santé sont implémentés pour le
-moment. Les autres blocs représentent l’architecture cible.
+La couche FastMCP, les contrôles de santé, la configuration et les modèles sont
+implémentés. Les autres blocs représentent l’architecture cible.
 
 ## Installation et lancement
 

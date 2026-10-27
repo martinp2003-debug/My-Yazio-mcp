@@ -1,0 +1,7 @@
+{
+  "access_token": "sanitized-access-token",
+  "expires_in": 3600,
+  "refresh_token": "sanitized-refresh-token",
+  "token_type": "bearer",
+  "observed_extension": "accepted"
+}

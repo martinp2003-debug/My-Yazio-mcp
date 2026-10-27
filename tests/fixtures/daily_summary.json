@@ -1,0 +1,41 @@
+{
+  "activity_energy": 250,
+  "consume_activity_energy": true,
+  "steps": 8000,
+  "water_intake": 1500,
+  "goals": {
+    "energy.energy": 2000,
+    "water": 2000,
+    "activity.step": 10000,
+    "nutrient.protein": 100,
+    "nutrient.fat": 70,
+    "nutrient.carb": 250,
+    "bodyvalue.weight": 68
+  },
+  "units": {
+    "unit_mass": "kg",
+    "unit_energy": "kcal",
+    "unit_serving": "g",
+    "unit_length": "cm"
+  },
+  "meals": {
+    "breakfast": {
+      "energy_goal": 500,
+      "nutrients": {
+        "energy.energy": 450,
+        "nutrient.carb": 50,
+        "nutrient.fat": 15,
+        "nutrient.protein": 25,
+        "observed_extension": "accepted"
+      }
+    }
+  },
+  "user": {
+    "start_weight": 70,
+    "current_weight": 68,
+    "goal": "maintain",
+    "sex": "not_specified"
+  },
+  "active_fasting_countdown_template_key": null,
+  "observed_extension": "accepted"
+}

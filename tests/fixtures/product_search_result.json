@@ -1,0 +1,18 @@
+{
+  "score": 0.98,
+  "name": "Sanitized search result",
+  "product_id": "00000000-0000-0000-0000-000000000006",
+  "serving": "portion",
+  "serving_quantity": 1,
+  "amount": 100,
+  "base_unit": "g",
+  "producer": "Sanitized producer",
+  "is_verified": true,
+  "nutrients": {
+    "energy.energy": 1.5,
+    "nutrient.carb": 0.2
+  },
+  "countries": ["FR"],
+  "language": "fr",
+  "observed_extension": "accepted"
+}

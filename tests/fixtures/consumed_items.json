@@ -1,0 +1,32 @@
+{
+  "products": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "serving": null,
+      "amount": 100,
+      "daytime": "lunch",
+      "date": "2026-08-02 16:02:48",
+      "type": "product",
+      "product_id": "00000000-0000-0000-0000-000000000002",
+      "serving_quantity": null,
+      "observed_extension": "accepted"
+    }
+  ],
+  "simple_products": [
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "Sanitized manual entry"
+    }
+  ],
+  "recipe_portions": [
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "date": "2026-08-02 19:30:00",
+      "daytime": "dinner",
+      "type": "recipe_portion",
+      "recipe_id": "00000000-0000-0000-0000-000000000005",
+      "portion_count": 1
+    }
+  ],
+  "observed_extension": "accepted"
+}
