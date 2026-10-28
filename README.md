@@ -10,7 +10,7 @@ API privée v22.
 
 ## État actuel
 
-Les phases 1 et 2 sont terminées :
+Les phases 1 à 3 sont terminées :
 
 - serveur FastMCP 4 en Streamable HTTP ;
 - endpoint MCP `http://127.0.0.1:8000/mcp` ;
@@ -23,6 +23,10 @@ Les phases 1 et 2 sont terminées :
   journal et le résumé quotidien ;
 - fixtures sanitisées et validation locale tolérante aux champs inconnus ;
 - aucune connexion à YAZIO dans les tests standards.
+- port asynchrone `YazioGateway` pour les lectures du MVP ;
+- client HTTP partagé avec authentification, expiration et refresh OAuth ;
+- erreurs applicatives stables, dont `version_blocked` ;
+- tests d’intégration HTTP entièrement simulés avec `respx`.
 
 Le plan détaillé et les règles de contribution se trouvent dans
 [AGENTS.md](AGENTS.md).
@@ -56,8 +60,10 @@ flowchart LR
     class G config;
 ```
 
-La couche FastMCP, les contrôles de santé, la configuration et les modèles sont
-implémentés. Les autres blocs représentent l’architecture cible.
+La couche FastMCP, les contrôles de santé, la configuration, les modèles, le
+port et l’authentification HTTP sont implémentés. Les cinq lectures YAZIO ne
+sont pas encore branchées sur l’adaptateur ou exposées comme outils MCP ; elles
+constituent la phase 4.
 
 ## Installation et lancement
 
@@ -68,6 +74,16 @@ Prérequis : Python 3.10 ou plus récent et
 uv sync --dev
 uv run yazio-mcp
 ```
+
+Pour préparer la configuration YAZIO locale :
+
+```bash
+cp .env.example .env
+```
+
+Renseignez ensuite `YAZIO_USERNAME` et `YAZIO_PASSWORD` dans `.env`. Ce fichier
+est ignoré par Git. Le `User-Agent` fourni est une valeur observée et instable :
+il devra être remplacé si YAZIO renvoie `version_blocked`.
 
 Options réseau :
 

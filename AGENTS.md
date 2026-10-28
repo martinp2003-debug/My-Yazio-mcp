@@ -97,22 +97,19 @@ réponse Pydantic doivent utiliser `ConfigDict(extra="allow")`.
 - Dates et heures connues normalisées par la validation des réponses.
 - Fixtures sanitisées et tests locaux, sans appel réseau.
 
+### Phase 3 — Port, adaptateur et authentification : terminée
+
+- Port asynchrone `YazioGateway` défini pour les cinq lectures déjà observées.
+- `YazioHttpClient` fondé sur un `httpx.AsyncClient` partagé et fermable.
+- Authentification JSON sur `oauth/token`, relativement à la base v22.
+- Token conservé en mémoire avec expiration et verrou anti-concurrence.
+- Refresh token utilisé lorsqu’il existe, avec réauthentification de secours.
+- `User-Agent` centralisé et erreurs applicatives stables, dont
+  `version_blocked`.
+- Service de journal testé avec un faux gateway, sans HTTP.
+- Authentification, expiration, refresh et erreurs couverts par `respx`.
+
 ## Plan restant
-
-### Phase 3 — Port, adaptateur et authentification
-
-- Définir le `YazioGateway` asynchrone avec les seules opérations du MVP.
-- Implémenter `YazioHttpClient` avec un `httpx.AsyncClient` partagé et fermé
-  proprement.
-- Appeler `/oauth/token` relativement à la base v22 sans dupliquer `/v22`.
-- Conserver le token en mémoire et tenir compte de son expiration.
-- Utiliser le refresh token lorsqu’il existe, sinon se réauthentifier.
-- Centraliser le `User-Agent` et traduire les erreurs HTTP en erreurs
-  applicatives stables, notamment `version_blocked`.
-- Couvrir avec respx l’authentification, l’expiration, le refresh et les erreurs.
-
-Critère de sortie : authentification couverte par simulation et services
-testables avec un faux gateway.
 
 ### Phase 4 — Lecture seule
 
