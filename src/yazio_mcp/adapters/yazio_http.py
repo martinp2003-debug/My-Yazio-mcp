@@ -4,10 +4,13 @@ import asyncio
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from types import TracebackType
+from typing import Any, TypeVar
+from urllib.parse import quote
 
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from yazio_mcp.config import Settings
 from yazio_mcp.errors import (
@@ -17,12 +20,25 @@ from yazio_mcp.errors import (
     YazioTransportError,
     YazioVersionBlockedError,
 )
-from yazio_mcp.models import OAuthToken
+from yazio_mcp.models import (
+    ConsumedItems,
+    DailySummary,
+    OAuthToken,
+    Product,
+    ProductSearchResult,
+    UserProfile,
+)
 
 # Observed mobile-app credentials identify the app, not an individual account.
 OAUTH_CLIENT_ID = "3_5rbw4kehpugw8ogsc8ck8oo4ogswgckcskc04gcg8kk8k48ssw"
 OAUTH_CLIENT_SECRET = "25gdtt1hvdi8gwowoww4oo88sgsw0oo04o0og0kkgwwks8k0k"
 OAUTH_TOKEN_PATH = "oauth/token"
+USER_PATH = "user"
+DAILY_SUMMARY_PATH = "user/widgets/daily-summary"
+CONSUMED_ITEMS_PATH = "user/consumed-items"
+PRODUCT_SEARCH_PATH = "products/search"
+
+ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
 
 
 @dataclass
@@ -94,6 +110,95 @@ class YazioHttpClient:
             self._store_token(token)
             return token.access_token.get_secret_value()
 
+    async def get_user(self) -> UserProfile:
+        """Return the authenticated user's observed profile."""
+        return await self._get_model(USER_PATH, UserProfile)
+
+    async def get_user_daily_summary(self, day: date) -> DailySummary:
+        """Return the observed daily-summary widget for one calendar day."""
+        return await self._get_model(
+            DAILY_SUMMARY_PATH,
+            DailySummary,
+            params={"date": day.isoformat()},
+        )
+
+    async def get_user_consumed_items(self, day: date) -> ConsumedItems:
+        """Return the three observed consumed-item buckets for one day."""
+        return await self._get_model(
+            CONSUMED_ITEMS_PATH,
+            ConsumedItems,
+            params={"date": day.isoformat()},
+        )
+
+    async def search_products(
+        self,
+        query: str,
+        *,
+        sex: str,
+        countries: str,
+        locales: str | None = None,
+    ) -> list[ProductSearchResult]:
+        """Search products with the parameters observed as required by YAZIO."""
+        params = {"query": query, "sex": sex, "countries": countries}
+        headers: dict[str, str] | None = None
+        if locales is not None:
+            params["locales"] = locales
+            headers = {"Accept-Language": locales}
+        payload = await self._get_json(
+            PRODUCT_SEARCH_PATH,
+            params=params,
+            headers=headers,
+        )
+        try:
+            return TypeAdapter(list[ProductSearchResult]).validate_python(payload)
+        except ValidationError:
+            raise YazioInvalidResponseError() from None
+
+    async def get_product(self, product_id: str) -> Product:
+        """Return one product by its observed YAZIO identifier."""
+        encoded_id = quote(product_id, safe="")
+        return await self._get_model(f"products/{encoded_id}", Product)
+
+    async def _get_model(
+        self,
+        path: str,
+        model: type[ResponseModelT],
+        *,
+        params: Mapping[str, str] | None = None,
+    ) -> ResponseModelT:
+        payload = await self._get_json(path, params=params)
+        try:
+            return model.model_validate(payload)
+        except ValidationError:
+            raise YazioInvalidResponseError() from None
+
+    async def _get_json(
+        self,
+        path: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> Any:
+        access_token = await self.get_access_token()
+        request_headers = {"Authorization": f"Bearer {access_token}"}
+        if headers is not None:
+            request_headers.update(headers)
+        try:
+            response = await self._client.get(
+                path,
+                params=params,
+                headers=request_headers,
+            )
+        except httpx.HTTPError:
+            raise YazioTransportError() from None
+
+        if response.is_error:
+            self._raise_http_error(response)
+        try:
+            return response.json()
+        except ValueError:
+            raise YazioInvalidResponseError(status_code=response.status_code) from None
+
     def _is_token_valid(self, state: _TokenState | None) -> bool:
         return state is not None and self._clock() < state.expires_at
 
@@ -135,14 +240,19 @@ class YazioHttpClient:
             raise YazioTransportError() from None
 
         if response.is_error:
-            self._raise_http_error(response)
+            self._raise_http_error(response, authentication_request=True)
 
         try:
             return OAuthToken.model_validate(response.json())
         except (ValueError, ValidationError):
             raise YazioInvalidResponseError(status_code=response.status_code) from None
 
-    def _raise_http_error(self, response: httpx.Response) -> None:
+    def _raise_http_error(
+        self,
+        response: httpx.Response,
+        *,
+        authentication_request: bool = False,
+    ) -> None:
         try:
             payload = response.json()
         except ValueError:
@@ -150,7 +260,9 @@ class YazioHttpClient:
 
         if isinstance(payload, dict) and payload.get("error") == "version_blocked":
             raise YazioVersionBlockedError(status_code=response.status_code)
-        if response.status_code in {400, 401}:
+        if response.status_code == 401 or (
+            authentication_request and response.status_code == 400
+        ):
             raise YazioAuthenticationError(status_code=response.status_code)
         raise YazioHttpError(status_code=response.status_code)
 

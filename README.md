@@ -10,7 +10,7 @@ API privée v22.
 
 ## État actuel
 
-Les phases 1 à 3 sont terminées :
+Les phases 1 à 4 sont terminées :
 
 - serveur FastMCP 4 en Streamable HTTP ;
 - endpoint MCP `http://127.0.0.1:8000/mcp` ;
@@ -27,6 +27,10 @@ Les phases 1 à 3 sont terminées :
 - client HTTP partagé avec authentification, expiration et refresh OAuth ;
 - erreurs applicatives stables, dont `version_blocked` ;
 - tests d’intégration HTTP entièrement simulés avec `respx`.
+- cinq lectures v22 exposées comme outils MCP : profil, résumé quotidien,
+  journal, recherche de produits et détail d’un produit ;
+- authentification Bearer partagée, dates ISO et localisation de la recherche ;
+- réponses nominales, partielles et erronées couvertes sans compte réel.
 
 Le plan détaillé et les règles de contribution se trouvent dans
 [AGENTS.md](AGENTS.md).
@@ -61,9 +65,24 @@ flowchart LR
 ```
 
 La couche FastMCP, les contrôles de santé, la configuration, les modèles, le
-port et l’authentification HTTP sont implémentés. Les cinq lectures YAZIO ne
-sont pas encore branchées sur l’adaptateur ou exposées comme outils MCP ; elles
-constituent la phase 4.
+port, l’authentification HTTP et les cinq lectures du MVP sont implémentés. Les
+routes restent des observations communautaires de l’API privée v22 et peuvent
+changer sans préavis.
+
+## Outils MCP
+
+| Outil | Paramètres | Effet |
+|---|---|---|
+| `health_check` | aucun | Contrôle local, sans appel à YAZIO |
+| `get_user` | aucun | Lit le profil authentifié |
+| `get_user_daily_summary` | `day` (`YYYY-MM-DD`) | Lit le résumé quotidien |
+| `get_user_consumed_items` | `day` (`YYYY-MM-DD`) | Lit les trois catégories du journal |
+| `search_products` | `query`, `sex`, `countries`, `locales` optionnel | Recherche des produits |
+| `get_product` | `product_id` | Lit un produit et ses nutriments par unité de base |
+
+`sex` et `countries` sont obligatoires pour la recherche selon les observations
+communautaires. `locales`, lorsqu’il est fourni, est aussi transmis comme
+`Accept-Language` car il influence le classement des résultats.
 
 ## Installation et lancement
 

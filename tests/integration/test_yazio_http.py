@@ -1,6 +1,8 @@
 import asyncio
 import json
 from collections.abc import Iterator
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,6 +23,7 @@ from yazio_mcp.errors import (
 API_BASE_URL = "https://example.invalid/v22"
 TOKEN_URL = f"{API_BASE_URL}/oauth/token"
 USER_AGENT = "YAZIO/test sanitized"
+FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
 class MutableClock:
@@ -61,6 +64,11 @@ def token_response(
 def request_json(request: httpx.Request) -> dict[str, str]:
     value: dict[str, str] = json.loads(request.content)
     return value
+
+
+def load_fixture(name: str) -> Any:
+    with (FIXTURES / name).open(encoding="utf-8") as fixture:
+        return json.load(fixture)
 
 
 @pytest.fixture
@@ -184,6 +192,11 @@ async def test_rejected_refresh_token_falls_back_to_password(
             "authentication_failed",
         ),
         (
+            httpx.Response(400, json={"error": "invalid_grant"}),
+            YazioAuthenticationError,
+            "authentication_failed",
+        ),
+        (
             httpx.Response(500, text="upstream failure"),
             YazioHttpError,
             "http_error",
@@ -227,3 +240,113 @@ async def test_transport_errors_are_translated_without_request_details(
 
     assert captured.value.code == "transport_error"
     assert TOKEN_URL not in str(captured.value)
+
+
+async def test_all_read_methods_use_observed_v22_routes_and_bearer_auth(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    user_route = mocked_yazio.get(f"{API_BASE_URL}/user").mock(
+        return_value=httpx.Response(200, json=load_fixture("user_profile.json"))
+    )
+    summary_route = mocked_yazio.get(
+        f"{API_BASE_URL}/user/widgets/daily-summary"
+    ).mock(return_value=httpx.Response(200, json=load_fixture("daily_summary.json")))
+    items_route = mocked_yazio.get(f"{API_BASE_URL}/user/consumed-items").mock(
+        return_value=httpx.Response(200, json=load_fixture("consumed_items.json"))
+    )
+    search_route = mocked_yazio.get(f"{API_BASE_URL}/products/search").mock(
+        return_value=httpx.Response(
+            200,
+            json=[load_fixture("product_search_result.json")],
+        )
+    )
+    product_id = "00000000-0000-0000-0000-000000000006"
+    product_route = mocked_yazio.get(
+        f"{API_BASE_URL}/products/{product_id}"
+    ).mock(return_value=httpx.Response(200, json=load_fixture("product.json")))
+
+    async with YazioHttpClient(make_settings()) as client:
+        user = await client.get_user()
+        summary = await client.get_user_daily_summary(date(2026, 10, 27))
+        items = await client.get_user_consumed_items(date(2026, 10, 27))
+        results = await client.search_products(
+            "sanitized query",
+            sex="not_specified",
+            countries="FR",
+            locales="fr-FR",
+        )
+        product = await client.get_product(product_id)
+
+    assert user.country == "FR"
+    assert summary.steps == 8000
+    assert len(items.products) == 1
+    assert results[0].product_id == product_id
+    assert product.name == "Sanitized product"
+    assert dict(summary_route.calls[0].request.url.params) == {
+        "date": "2026-10-27"
+    }
+    assert dict(items_route.calls[0].request.url.params) == {"date": "2026-10-27"}
+    assert dict(search_route.calls[0].request.url.params) == {
+        "query": "sanitized query",
+        "sex": "not_specified",
+        "countries": "FR",
+        "locales": "fr-FR",
+    }
+    assert search_route.calls[0].request.headers["Accept-Language"] == "fr-FR"
+    for route in (user_route, summary_route, items_route, search_route, product_route):
+        assert route.calls[0].request.headers["Authorization"] == "Bearer access-one"
+
+
+async def test_partial_read_response_is_accepted(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    mocked_yazio.get(f"{API_BASE_URL}/user/consumed-items").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        items = await client.get_user_consumed_items(date(2026, 10, 27))
+
+    assert items.products == []
+    assert items.simple_products == []
+    assert items.recipe_portions == []
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, json=[]),
+        httpx.Response(200, text="not json"),
+    ],
+)
+async def test_invalid_read_response_is_translated(
+    mocked_yazio: respx.MockRouter,
+    response: httpx.Response,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    mocked_yazio.get(f"{API_BASE_URL}/products/product-id").mock(
+        return_value=response
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        with pytest.raises(YazioInvalidResponseError):
+            await client.get_product("product-id")
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+async def test_read_http_error_is_translated_without_response_body(
+    mocked_yazio: respx.MockRouter,
+    status_code: int,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    mocked_yazio.get(f"{API_BASE_URL}/products/product-id").mock(
+        return_value=httpx.Response(status_code, json={"private": "health-data"})
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        with pytest.raises(YazioHttpError) as captured:
+            await client.get_product("product-id")
+
+    assert "health-data" not in str(captured.value) + repr(captured.value)
