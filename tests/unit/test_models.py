@@ -91,6 +91,28 @@ def test_consumed_items_keep_buckets_separate_and_normalize_timestamps() -> None
     assert items.model_extra == {"observed_extension": "accepted"}
 
 
+def test_consumed_item_output_schema_does_not_claim_rfc3339_timezone() -> None:
+    items = ConsumedItems.model_validate(load_fixture("consumed_items.json"))
+    serialized = items.model_dump(mode="json")
+    schema = ConsumedItems.model_json_schema(mode="serialization")
+
+    product_date_schema = schema["$defs"]["ConsumedProduct"]["properties"]["date"]
+    recipe_date_schema = schema["$defs"]["ConsumedRecipePortion"]["properties"][
+        "date"
+    ]
+
+    assert serialized["products"][0]["date"] == "2026-08-02T16:02:48"
+    assert serialized["recipe_portions"][0]["date"] == "2026-08-02T19:30:00"
+    for date_schema in (product_date_schema, recipe_date_schema):
+        string_schema = next(
+            option
+            for option in date_schema["anyOf"]
+            if option.get("type") == "string"
+        )
+        assert "format" not in string_schema
+        assert "timezone offset may be absent" in string_schema["description"]
+
+
 def test_consumed_items_partial_response_gets_independent_empty_lists() -> None:
     first = ConsumedItems.model_validate({})
     second = ConsumedItems.model_validate({})

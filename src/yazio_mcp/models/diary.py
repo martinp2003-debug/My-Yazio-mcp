@@ -1,10 +1,24 @@
 """Food diary and daily summary response models."""
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import Field, WithJsonSchema
 
 from yazio_mcp.models.base import YazioResponseModel
+
+YazioLocalDateTime = Annotated[
+    datetime,
+    WithJsonSchema(
+        {
+            "type": "string",
+            "description": (
+                "Local timestamp observed from YAZIO; a timezone offset may be absent."
+            ),
+        },
+        mode="serialization",
+    ),
+]
 
 
 class ConsumedProduct(YazioResponseModel):
@@ -14,7 +28,7 @@ class ConsumedProduct(YazioResponseModel):
     serving: str | None = None
     amount: float | None = None
     daytime: str | None = None
-    date: datetime | None = None
+    date: YazioLocalDateTime | None = None
     type: str | None = None
     product_id: str | None = None
     serving_quantity: float | None = None
@@ -28,7 +42,7 @@ class ConsumedRecipePortion(YazioResponseModel):
     """A consumed portion of a recipe."""
 
     id: str | None = None
-    date: datetime | None = None
+    date: YazioLocalDateTime | None = None
     daytime: str | None = None
     type: str | None = None
     recipe_id: str | None = None
