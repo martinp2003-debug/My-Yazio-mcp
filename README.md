@@ -10,7 +10,7 @@ API privée v22.
 
 ## État actuel
 
-Les phases 1 à 4 sont terminées :
+Le serveur fournit actuellement :
 
 - serveur FastMCP 4 en Streamable HTTP ;
 - endpoint MCP `http://127.0.0.1:8000/mcp` ;

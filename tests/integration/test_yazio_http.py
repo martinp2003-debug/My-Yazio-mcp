@@ -242,6 +242,102 @@ async def test_transport_errors_are_translated_without_request_details(
     assert TOKEN_URL not in str(captured.value)
 
 
+async def test_read_401_refreshes_token_and_retries_once(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    token_route = mocked_yazio.post(TOKEN_URL).mock(
+        side_effect=[
+            token_response("access-one", refresh_token="refresh-one"),
+            token_response("access-two", refresh_token="refresh-two"),
+        ]
+    )
+    user_route = mocked_yazio.get(f"{API_BASE_URL}/user").mock(
+        side_effect=[
+            httpx.Response(401, json={"error": "invalid_token"}),
+            httpx.Response(200, json=load_fixture("user_profile.json")),
+        ]
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        user = await client.get_user()
+
+    assert user.country == "FR"
+    assert token_route.call_count == 2
+    assert request_json(token_route.calls[1].request) == {
+        "grant_type": "refresh_token",
+        "refresh_token": "refresh-one",
+        "client_id": "3_5rbw4kehpugw8ogsc8ck8oo4ogswgckcskc04gcg8kk8k48ssw",
+        "client_secret": "25gdtt1hvdi8gwowoww4oo88sgsw0oo04o0og0kkgwwks8k0k",
+    }
+    assert user_route.call_count == 2
+    assert user_route.calls[0].request.headers["Authorization"] == "Bearer access-one"
+    assert user_route.calls[1].request.headers["Authorization"] == "Bearer access-two"
+
+
+async def test_read_401_is_retried_only_once(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    token_route = mocked_yazio.post(TOKEN_URL).mock(
+        side_effect=[
+            token_response("access-one", refresh_token="refresh-one"),
+            token_response("access-two", refresh_token="refresh-two"),
+        ]
+    )
+    user_route = mocked_yazio.get(f"{API_BASE_URL}/user").mock(
+        return_value=httpx.Response(401, json={"error": "invalid_token"})
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        with pytest.raises(YazioAuthenticationError):
+            await client.get_user()
+
+    assert token_route.call_count == 2
+    assert user_route.call_count == 2
+
+
+async def test_stale_401_does_not_invalidate_a_newer_token(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    token_route = mocked_yazio.post(TOKEN_URL).mock(
+        side_effect=[
+            token_response("access-one", refresh_token="refresh-one"),
+            token_response("access-two", refresh_token="refresh-two"),
+        ]
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        assert await client.get_access_token() == "access-one"
+        await client._invalidate_token_if_current("access-one")
+        assert await client.get_access_token() == "access-two"
+
+        await client._invalidate_token_if_current("access-one")
+
+        assert await client.get_access_token() == "access-two"
+
+    assert token_route.call_count == 2
+
+
+async def test_token_is_renewed_before_reported_expiration(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    clock = MutableClock()
+    token_route = mocked_yazio.post(TOKEN_URL).mock(
+        side_effect=[
+            token_response("access-one", expires_in=100, refresh_token="refresh-one"),
+            token_response("access-two", expires_in=100),
+        ]
+    )
+
+    async with YazioHttpClient(make_settings(), clock=clock) as client:
+        assert await client.get_access_token() == "access-one"
+        clock.value = 189
+        assert await client.get_access_token() == "access-one"
+        clock.value = 190
+        assert await client.get_access_token() == "access-two"
+
+    assert token_route.call_count == 2
+
+
 async def test_all_read_methods_use_observed_v22_routes_and_bearer_auth(
     mocked_yazio: respx.MockRouter,
 ) -> None:

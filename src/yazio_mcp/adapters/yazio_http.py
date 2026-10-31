@@ -37,6 +37,7 @@ USER_PATH = "user"
 DAILY_SUMMARY_PATH = "user/widgets/daily-summary"
 CONSUMED_ITEMS_PATH = "user/consumed-items"
 PRODUCT_SEARCH_PATH = "products/search"
+TOKEN_EXPIRY_SKEW_SECONDS = 30.0
 
 ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
 
@@ -180,17 +181,22 @@ class YazioHttpClient:
         headers: Mapping[str, str] | None = None,
     ) -> Any:
         access_token = await self.get_access_token()
-        request_headers = {"Authorization": f"Bearer {access_token}"}
-        if headers is not None:
-            request_headers.update(headers)
-        try:
-            response = await self._client.get(
+        response = await self._authenticated_get(
+            path,
+            access_token=access_token,
+            params=params,
+            headers=headers,
+        )
+
+        if response.status_code == 401:
+            await self._invalidate_token_if_current(access_token)
+            access_token = await self.get_access_token()
+            response = await self._authenticated_get(
                 path,
+                access_token=access_token,
                 params=params,
-                headers=request_headers,
+                headers=headers,
             )
-        except httpx.HTTPError:
-            raise YazioTransportError() from None
 
         if response.is_error:
             self._raise_http_error(response)
@@ -199,8 +205,42 @@ class YazioHttpClient:
         except ValueError:
             raise YazioInvalidResponseError(status_code=response.status_code) from None
 
+    async def _authenticated_get(
+        self,
+        path: str,
+        *,
+        access_token: str,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> httpx.Response:
+        """Send one authenticated GET without retrying authentication failures."""
+        request_headers = {"Authorization": f"Bearer {access_token}"}
+        if headers is not None:
+            request_headers.update(headers)
+        try:
+            return await self._client.get(
+                path,
+                params=params,
+                headers=request_headers,
+            )
+        except httpx.HTTPError:
+            raise YazioTransportError() from None
+
     def _is_token_valid(self, state: _TokenState | None) -> bool:
         return state is not None and self._clock() < state.expires_at
+
+    async def _invalidate_token_if_current(self, access_token: str) -> None:
+        """Expire the rejected token without discarding its refresh token."""
+        async with self._token_lock:
+            state = self._token_state
+            if (
+                state is not None
+                and state.token.access_token.get_secret_value() == access_token
+            ):
+                self._token_state = _TokenState(
+                    token=state.token,
+                    expires_at=self._clock(),
+                )
 
     async def _renew_token(self, state: _TokenState | None) -> OAuthToken:
         refresh_token = None if state is None else state.token.refresh_token
@@ -268,7 +308,8 @@ class YazioHttpClient:
 
     def _store_token(self, token: OAuthToken) -> None:
         lifetime = max(token.expires_in, 0.0)
+        expiry_skew = min(TOKEN_EXPIRY_SKEW_SECONDS, lifetime * 0.1)
         self._token_state = _TokenState(
             token=token,
-            expires_at=self._clock() + lifetime,
+            expires_at=self._clock() + lifetime - expiry_skew,
         )
