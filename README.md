@@ -12,25 +12,17 @@ API privée v22.
 
 Le serveur fournit actuellement :
 
-- serveur FastMCP 4 en Streamable HTTP ;
-- endpoint MCP `http://127.0.0.1:8000/mcp` ;
-- route HTTP `GET /health` et outil MCP `health_check` ;
-- tests locaux avec pytest ;
-- contrôles Ruff et mypy ;
-- aucun appel à YAZIO pour les contrôles de santé.
-- configuration YAZIO validée avec `pydantic-settings` et secrets masqués ;
-- modèles Pydantic pour l’authentification, l’utilisateur, les produits, le
-  journal et le résumé quotidien ;
-- fixtures sanitisées et validation locale tolérante aux champs inconnus ;
-- aucune connexion à YAZIO dans les tests standards.
-- port asynchrone `YazioGateway` pour les lectures du MVP ;
-- client HTTP partagé avec authentification, expiration et refresh OAuth ;
-- erreurs applicatives stables, dont `version_blocked` ;
-- tests d’intégration HTTP entièrement simulés avec `respx`.
-- cinq lectures v22 exposées comme outils MCP : profil, résumé quotidien,
-  journal, recherche de produits et détail d’un produit ;
-- authentification Bearer partagée, dates ISO et localisation de la recherche ;
-- réponses nominales, partielles et erronées couvertes sans compte réel.
+- FastMCP 4 en Streamable HTTP sur `http://127.0.0.1:8000/mcp` ;
+- route `GET /health` et outil local `health_check` ;
+- cinq outils de lecture : profil, résumé, journal, recherche et produit ;
+- client HTTP asynchrone avec authentification et refresh OAuth ;
+- configuration et modèles Pydantic tolérants aux champs inconnus ;
+- tests locaux et HTTP simulés, sans connexion à un compte réel.
+
+Les cinq lectures sont couvertes localement et ont été exécutées avec succès en
+lecture seule face à l’API privée v22. Cette validation live reste un smoke
+test : elle ne garantit ni la stabilité des routes et schémas, ni toutes les
+combinaisons de paramètres.
 
 Le plan détaillé et les règles de contribution se trouvent dans
 [AGENTS.md](AGENTS.md).
@@ -64,10 +56,8 @@ flowchart LR
     class G config;
 ```
 
-La couche FastMCP, les contrôles de santé, la configuration, les modèles, le
-port, l’authentification HTTP et les cinq lectures du MVP sont implémentés. Les
-routes restent des observations communautaires de l’API privée v22 et peuvent
-changer sans préavis.
+Les routes restent des observations communautaires de l’API privée v22 et
+peuvent changer sans préavis.
 
 ## Outils MCP
 
