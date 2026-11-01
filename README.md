@@ -25,28 +25,26 @@ lecture seule face à l’API privée v22. Cette validation live reste un smoke
 test : elle ne garantit ni la stabilité des routes et schémas, ni toutes les
 combinaisons de paramètres.
 
-Les mutations sont couvertes localement avec HTTP simulé. Un ajout de produit
-a aussi été validé manuellement sur un compte réel : après correction du
-créneau de repas (`daytime: "snack"`) et fourniture de `serving: "gram"` et
-`serving_quantity`, YAZIO a renvoyé l’entrée dans le journal. La suppression
-MCP et l’ajout d’une entrée manuelle n’ont pas été validés sur un compte réel.
+Des tests avec HTTP simulé existent pour les mutations. Pendant la session de
+test manuel décrite ci-dessous, un ajout de produit MCP a été accepté et
+l’entrée est apparue dans `get_user_consumed_items`. La suppression MCP et
+l’ajout d’une entrée manuelle n’ont pas été testés sur un compte réel. Les
+commandes de tests automatisés n’ont pas été relancées pendant cette session.
 
 ### Validation manuelle de l’ajout d’un produit
 
-Le 1er novembre 2026, un produit a été ajouté depuis MCP puis vérifié avec
-`get_user_consumed_items`. La réponse contenait une entrée `products` avec
-`type: "product"`, le produit attendu, `daytime: "snack"`, `serving: "gram"`
-et les quantités attendues. L’ajout initial avait échoué avec HTTP 400 parce
-que la date avait été passée comme `daytime`; YAZIO attend ici un créneau de
-repas. Une capture native de l’application utilisait également `snack`,
-`gram` et une `serving_quantity` égale à la quantité.
+Le 1er novembre 2026, les appels d’ajout MCP ont d’abord échoué avec HTTP 400
+quand une date était passée dans `daytime`; YAZIO attend ici un créneau de
+repas. Avec `daytime: "snack"`, `serving: "gram"` et une
+`serving_quantity` égale à la quantité, l’entrée MCP est ensuite apparue dans
+`get_user_consumed_items` avec `type: "product"` et les valeurs attendues.
+Une capture native de l’application montrait les mêmes champs fonctionnels.
 
 L’application mobile n’a pas immédiatement actualisé son widget après l’ajout
 MCP. Fermer puis rouvrir l’application a fait apparaître l’entrée. Les lectures
-du résumé quotidien étaient identiques dans les comparaisons effectuées ; ce
-test n’a donc pas mis en évidence de recalcul côté serveur déclenché par
-l’ajout. Cette observation ne prouve pas que toutes les versions de
-l’application ou de l’API se comportent ainsi.
+du résumé quotidien étaient identiques dans les comparaisons effectuées. Ce
+test ne permet pas d’établir pourquoi l’interface était en retard, ni de
+généraliser ce comportement à d’autres versions de l’application ou de l’API.
 
 Le flux réseau a été inspecté avec mitmproxy. Les captures peuvent contenir
 des jetons OAuth et des données de santé : ne pas les partager ni les committer.
