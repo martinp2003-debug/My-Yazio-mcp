@@ -1,6 +1,7 @@
 """HTTP adapter and in-memory OAuth lifecycle for the private YAZIO API."""
 
 import asyncio
+import logging
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -21,7 +22,9 @@ from yazio_mcp.errors import (
     YazioVersionBlockedError,
 )
 from yazio_mcp.models import (
+    ConsumedItemBucket,
     ConsumedItems,
+    ConsumedProductWrite,
     DailySummary,
     OAuthToken,
     Product,
@@ -40,6 +43,7 @@ PRODUCT_SEARCH_PATH = "products/search"
 TOKEN_EXPIRY_SKEW_SECONDS = 30.0
 
 ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -160,6 +164,30 @@ class YazioHttpClient:
         encoded_id = quote(product_id, safe="")
         return await self._get_model(f"products/{encoded_id}", Product)
 
+    async def add_consumed_product(self, item: ConsumedProductWrite) -> None:
+        """Write one product using the observed three-bucket envelope."""
+        await self._mutate(
+            "POST",
+            CONSUMED_ITEMS_PATH,
+            payload={
+                "products": [item.to_yazio_payload()],
+                "simple_products": [],
+                "recipe_portions": [],
+            },
+        )
+
+    async def delete_consumed_item(
+        self,
+        bucket: ConsumedItemBucket,
+        entry_id: str,
+    ) -> None:
+        """Delete one entry using the bucket-keyed JSON body."""
+        await self._mutate(
+            "DELETE",
+            CONSUMED_ITEMS_PATH,
+            payload={bucket: entry_id},
+        )
+
     async def _get_model(
         self,
         path: str,
@@ -222,6 +250,60 @@ class YazioHttpClient:
                 path,
                 params=params,
                 headers=request_headers,
+            )
+        except httpx.HTTPError:
+            raise YazioTransportError() from None
+
+    async def _mutate(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, object],
+    ) -> None:
+        """Send one mutation, retrying only a definite authentication rejection."""
+        access_token = await self.get_access_token()
+        response = await self._authenticated_mutation(
+            method,
+            path,
+            access_token=access_token,
+            payload=payload,
+        )
+
+        if response.status_code == 401:
+            await self._invalidate_token_if_current(access_token)
+            access_token = await self.get_access_token()
+            response = await self._authenticated_mutation(
+                method,
+                path,
+                access_token=access_token,
+                payload=payload,
+            )
+
+        if response.is_error:
+            logger.warning(
+                "YAZIO mutation failed with HTTP status %s",
+                response.status_code,
+            )
+            self._raise_http_error(response)
+        if response.status_code != 204:
+            raise YazioInvalidResponseError(status_code=response.status_code)
+
+    async def _authenticated_mutation(
+        self,
+        method: str,
+        path: str,
+        *,
+        access_token: str,
+        payload: Mapping[str, object],
+    ) -> httpx.Response:
+        """Send a mutation once; transport failures remain outcome-ambiguous."""
+        try:
+            return await self._client.request(
+                method,
+                path,
+                json=payload,
+                headers={"Authorization": f"Bearer {access_token}"},
             )
         except httpx.HTTPError:
             raise YazioTransportError() from None

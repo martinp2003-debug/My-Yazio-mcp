@@ -19,6 +19,7 @@ from yazio_mcp.errors import (
     YazioTransportError,
     YazioVersionBlockedError,
 )
+from yazio_mcp.models import ConsumedProductWrite
 
 API_BASE_URL = "https://example.invalid/v22"
 TOKEN_URL = f"{API_BASE_URL}/oauth/token"
@@ -61,8 +62,8 @@ def token_response(
     return httpx.Response(200, json=payload)
 
 
-def request_json(request: httpx.Request) -> dict[str, str]:
-    value: dict[str, str] = json.loads(request.content)
+def request_json(request: httpx.Request) -> dict[str, Any]:
+    value: dict[str, Any] = json.loads(request.content)
     return value
 
 
@@ -446,3 +447,89 @@ async def test_read_http_error_is_translated_without_response_body(
             await client.get_product("product-id")
 
     assert "health-data" not in str(captured.value) + repr(captured.value)
+
+
+async def test_diary_mutations_use_observed_payloads_and_bearer_auth(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    post_route = mocked_yazio.post(f"{API_BASE_URL}/user/consumed-items").mock(
+        return_value=httpx.Response(204)
+    )
+    delete_route = mocked_yazio.delete(
+        f"{API_BASE_URL}/user/consumed-items"
+    ).mock(return_value=httpx.Response(204))
+    item = ConsumedProductWrite(
+        id="00000000-0000-0000-0000-000000000010",
+        product_id="product-id",
+        amount=125,
+        daytime="lunch",
+        consumed_at="2026-10-31T12:30:00",
+        serving="gram",
+        serving_quantity=1,
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        await client.add_consumed_product(item)
+        await client.delete_consumed_item("products", item.id)
+
+    assert request_json(post_route.calls[0].request) == {
+        "products": [
+            {
+                "id": item.id,
+                "serving": "gram",
+                "amount": 125,
+                "daytime": "lunch",
+                "date": "2026-10-31 12:30:00",
+                "product_id": "product-id",
+                "serving_quantity": 1,
+            }
+        ],
+        "simple_products": [],
+        "recipe_portions": [],
+    }
+    assert request_json(delete_route.calls[0].request) == {"products": item.id}
+    for route in (post_route, delete_route):
+        assert route.calls[0].request.headers["Authorization"] == "Bearer access-one"
+
+
+async def test_mutation_401_refreshes_and_retries_once(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    token_route = mocked_yazio.post(TOKEN_URL).mock(
+        side_effect=[
+            token_response("access-one", refresh_token="refresh-one"),
+            token_response("access-two", refresh_token="refresh-two"),
+        ]
+    )
+    delete_route = mocked_yazio.delete(
+        f"{API_BASE_URL}/user/consumed-items"
+    ).mock(
+        side_effect=[
+            httpx.Response(401, json={"error": "invalid_token"}),
+            httpx.Response(204),
+        ]
+    )
+
+    async with YazioHttpClient(make_settings()) as client:
+        await client.delete_consumed_item("products", "entry-id")
+
+    assert token_route.call_count == 2
+    assert delete_route.call_count == 2
+    assert delete_route.calls[0].request.headers["Authorization"] == "Bearer access-one"
+    assert delete_route.calls[1].request.headers["Authorization"] == "Bearer access-two"
+
+
+async def test_mutation_transport_failure_is_not_retried(
+    mocked_yazio: respx.MockRouter,
+) -> None:
+    mocked_yazio.post(TOKEN_URL).mock(return_value=token_response("access-one"))
+    delete_route = mocked_yazio.delete(
+        f"{API_BASE_URL}/user/consumed-items"
+    ).mock(side_effect=httpx.ReadTimeout("ambiguous write outcome"))
+
+    async with YazioHttpClient(make_settings()) as client:
+        with pytest.raises(YazioTransportError):
+            await client.delete_consumed_item("products", "entry-id")
+
+    assert delete_route.call_count == 1

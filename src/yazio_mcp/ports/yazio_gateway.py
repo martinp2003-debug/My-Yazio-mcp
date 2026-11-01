@@ -4,7 +4,9 @@ from datetime import date
 from typing import Protocol
 
 from yazio_mcp.models import (
+    ConsumedItemBucket,
     ConsumedItems,
+    ConsumedProductWrite,
     DailySummary,
     Product,
     ProductSearchResult,
@@ -40,4 +42,16 @@ class YazioGateway(Protocol):
 
     async def get_product(self, product_id: str) -> Product:
         """Return one product by its YAZIO identifier."""
+        ...
+
+    async def add_consumed_product(self, item: ConsumedProductWrite) -> None:
+        """Add one observed product payload to the diary."""
+        ...
+
+    async def delete_consumed_item(
+        self,
+        bucket: ConsumedItemBucket,
+        entry_id: str,
+    ) -> None:
+        """Delete one diary entry from its observed bucket."""
         ...

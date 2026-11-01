@@ -1,9 +1,9 @@
 """Food diary and daily summary response models."""
 
-from datetime import datetime
-from typing import Annotated
+from datetime import date, datetime
+from typing import Annotated, Literal
 
-from pydantic import Field, WithJsonSchema
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, field_validator
 
 from yazio_mcp.models.base import YazioResponseModel
 
@@ -19,6 +19,64 @@ YazioLocalDateTime = Annotated[
         mode="serialization",
     ),
 ]
+
+ConsumedItemBucket = Literal["products", "simple_products", "recipe_portions"]
+LocalTimestamp = Annotated[
+    str,
+    Field(
+        pattern=r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}$",
+        description="Local YAZIO time as YYYY-MM-DDTHH:MM:SS; no timezone offset.",
+    ),
+]
+
+
+class ConsumedProductWrite(BaseModel):
+    """Exact product payload written inside the consumed-items envelope."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    daytime: str = Field(min_length=1)
+    consumed_at: LocalTimestamp
+    serving: str | None = None
+    serving_quantity: float | None = Field(default=None, gt=0)
+
+    @field_validator("consumed_at")
+    @classmethod
+    def normalize_consumed_at(cls, value: str) -> str:
+        """Normalize the accepted MCP separator to the observed YAZIO format."""
+        normalized = value.replace("T", " ")
+        datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
+        return normalized
+
+    @property
+    def day(self) -> date:
+        """Return the local calendar day used for write verification."""
+        return date.fromisoformat(self.consumed_at[:10])
+
+    def to_yazio_payload(self) -> dict[str, str | float | None]:
+        """Serialize only fields observed in YAZIO product diary writes."""
+        return {
+            "id": self.id,
+            "serving": self.serving,
+            "amount": self.amount,
+            "daytime": self.daytime,
+            "date": self.consumed_at,
+            "product_id": self.product_id,
+            "serving_quantity": self.serving_quantity,
+        }
+
+
+class DiaryMutationResult(BaseModel):
+    """Result returned only after a diary mutation has been read back."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_id: str
+    bucket: ConsumedItemBucket
+    verified: Literal[True] = True
 
 
 class ConsumedProduct(YazioResponseModel):

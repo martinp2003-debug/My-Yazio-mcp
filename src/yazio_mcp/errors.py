@@ -45,3 +45,17 @@ class YazioInvalidResponseError(YazioError):
 
     code = "invalid_response"
     default_message = "YAZIO returned an invalid response"
+
+
+class YazioItemNotFoundError(YazioError):
+    """A requested diary entry was not present in the declared bucket."""
+
+    code = "item_not_found"
+    default_message = "The YAZIO diary item was not found"
+
+
+class YazioMutationVerificationError(YazioError):
+    """A write acknowledgement could not be confirmed by reading it back."""
+
+    code = "mutation_not_verified"
+    default_message = "The YAZIO diary mutation could not be verified"

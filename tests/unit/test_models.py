@@ -3,11 +3,13 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pydantic import ValidationError
 
 from yazio_mcp.models import (
     ConsumedItems,
     ConsumedProduct,
+    ConsumedProductWrite,
     DailySummary,
     OAuthToken,
     Product,
@@ -15,6 +17,28 @@ from yazio_mcp.models import (
     SimpleProduct,
     UserProfile,
 )
+
+
+def test_consumed_product_write_normalizes_and_validates_local_time() -> None:
+    item = ConsumedProductWrite(
+        id="entry-id",
+        product_id="product-id",
+        amount=1,
+        daytime="lunch",
+        consumed_at="2026-10-31T12:30:00",
+    )
+
+    assert item.consumed_at == "2026-10-31 12:30:00"
+    assert item.day == date(2026, 10, 31)
+
+    with pytest.raises(ValidationError):
+        ConsumedProductWrite(
+            id="entry-id",
+            product_id="product-id",
+            amount=1,
+            daytime="lunch",
+            consumed_at="2026-10-31T99:30:00",
+        )
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 

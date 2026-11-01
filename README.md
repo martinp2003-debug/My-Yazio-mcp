@@ -15,6 +15,7 @@ Le serveur fournit actuellement :
 - FastMCP 4 en Streamable HTTP sur `http://127.0.0.1:8000/mcp` ;
 - route `GET /health` et outil local `health_check` ;
 - cinq outils de lecture : profil, résumé, journal, recherche et produit ;
+- ajout d’un produit consommé et suppression vérifiée d’une entrée ;
 - client HTTP asynchrone avec authentification et refresh OAuth ;
 - configuration et modèles Pydantic tolérants aux champs inconnus ;
 - tests locaux et HTTP simulés, sans connexion à un compte réel.
@@ -23,6 +24,32 @@ Les cinq lectures sont couvertes localement et ont été exécutées avec succè
 lecture seule face à l’API privée v22. Cette validation live reste un smoke
 test : elle ne garantit ni la stabilité des routes et schémas, ni toutes les
 combinaisons de paramètres.
+
+Les mutations sont couvertes localement avec HTTP simulé. Un ajout de produit
+a aussi été validé manuellement sur un compte réel : après correction du
+créneau de repas (`daytime: "snack"`) et fourniture de `serving: "gram"` et
+`serving_quantity`, YAZIO a renvoyé l’entrée dans le journal. La suppression
+MCP et l’ajout d’une entrée manuelle n’ont pas été validés sur un compte réel.
+
+### Validation manuelle de l’ajout d’un produit
+
+Le 1er novembre 2026, un produit a été ajouté depuis MCP puis vérifié avec
+`get_user_consumed_items`. La réponse contenait une entrée `products` avec
+`type: "product"`, le produit attendu, `daytime: "snack"`, `serving: "gram"`
+et les quantités attendues. L’ajout initial avait échoué avec HTTP 400 parce
+que la date avait été passée comme `daytime`; YAZIO attend ici un créneau de
+repas. Une capture native de l’application utilisait également `snack`,
+`gram` et une `serving_quantity` égale à la quantité.
+
+L’application mobile n’a pas immédiatement actualisé son widget après l’ajout
+MCP. Fermer puis rouvrir l’application a fait apparaître l’entrée. Les lectures
+du résumé quotidien étaient identiques dans les comparaisons effectuées ; ce
+test n’a donc pas mis en évidence de recalcul côté serveur déclenché par
+l’ajout. Cette observation ne prouve pas que toutes les versions de
+l’application ou de l’API se comportent ainsi.
+
+Le flux réseau a été inspecté avec mitmproxy. Les captures peuvent contenir
+des jetons OAuth et des données de santé : ne pas les partager ni les committer.
 
 Le plan détaillé et les règles de contribution se trouvent dans
 [AGENTS.md](AGENTS.md).
@@ -69,10 +96,17 @@ peuvent changer sans préavis.
 | `get_user_consumed_items` | `day` (`YYYY-MM-DD`) | Lit les trois catégories du journal |
 | `search_products` | `query`, `sex`, `countries`, `locales` optionnel | Recherche des produits |
 | `get_product` | `product_id` | Lit un produit et ses nutriments par unité de base |
+| `add_consumed_product` | produit, quantité, repas et heure locale | Ajoute puis vérifie un produit |
+| `delete_consumed_item` | `day`, catégorie et identifiant | Supprime puis vérifie une entrée |
 
 `sex` et `countries` sont obligatoires pour la recherche selon les observations
 communautaires. `locales`, lorsqu’il est fourni, est aussi transmis comme
 `Accept-Language` car il influence le classement des résultats.
+
+Les outils d’écriture modifient le compte configuré. Ils ne doivent être
+appelés qu’après présentation de l’opération exacte et accord explicite de
+l’utilisateur. `consumed_at` utilise une heure locale sans fuseau au format
+`YYYY-MM-DDTHH:MM:SS`.
 
 ## Installation et lancement
 
@@ -82,6 +116,16 @@ Prérequis : Python 3.10 ou plus récent et
 ```bash
 uv sync --dev
 uv run yazio-mcp
+```
+
+Pour tester le serveur avec MCP Inspector, laissez le serveur tourner puis
+lancez dans un second terminal :
+
+```bash
+npx --yes @modelcontextprotocol/inspector \
+  --transport http \
+  --server-url http://127.0.0.1:8000/mcp \
+  --protocol-era legacy
 ```
 
 Pour préparer la configuration YAZIO locale :

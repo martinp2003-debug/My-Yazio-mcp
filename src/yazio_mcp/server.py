@@ -4,17 +4,20 @@ import argparse
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from yazio_mcp.adapters import YazioHttpClient
 from yazio_mcp.config import Settings
 from yazio_mcp.models import (
+    ConsumedItemBucket,
     ConsumedItems,
     DailySummary,
+    DiaryMutationResult,
     Product,
     ProductSearchResult,
     UserProfile,
@@ -102,6 +105,60 @@ async def search_products(
 async def get_product(product_id: str) -> Product:
     """Get observed details and per-base-unit nutrients for one YAZIO product."""
     return await _get_gateway().get_product(product_id)
+
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    }
+)
+async def add_consumed_product(
+    product_id: Annotated[str, Field(min_length=1)],
+    amount: Annotated[float, Field(gt=0)],
+    daytime: Annotated[str, Field(min_length=1)],
+    consumed_at: Annotated[
+        str,
+        Field(
+            pattern=r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}$",
+            description="Local time as YYYY-MM-DDTHH:MM:SS; no timezone offset.",
+        ),
+    ],
+    serving: str | None = None,
+    serving_quantity: Annotated[float, Field(gt=0)] | None = None,
+) -> DiaryMutationResult:
+    """Add one YAZIO product and return only after read-back verification."""
+    return await DiaryService(_get_gateway()).add_consumed_product(
+        product_id=product_id,
+        amount=amount,
+        daytime=daytime,
+        consumed_at=consumed_at,
+        serving=serving,
+        serving_quantity=serving_quantity,
+    )
+
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    }
+)
+async def delete_consumed_item(
+    day: date,
+    bucket: ConsumedItemBucket,
+    entry_id: Annotated[str, Field(min_length=1)],
+) -> DiaryMutationResult:
+    """Delete one known diary entry and verify its absence for the given day."""
+    return await DiaryService(_get_gateway()).delete_consumed_item(
+        day=day,
+        bucket=bucket,
+        entry_id=entry_id,
+    )
 
 
 @mcp.custom_route("/health", methods=["GET"])
