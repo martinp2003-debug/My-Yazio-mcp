@@ -1,72 +1,69 @@
 # YAZIO MCP
 
-Serveur MCP non officiel en Python pour explorer les données YAZIO via son
-API privée v22.
+An unofficial Python MCP server for exploring YAZIO data through its private
+v22 API.
 
 > [!WARNING]
-> YAZIO ne fournit pas d’API publique. Les routes utilisées ici peuvent changer
-> sans préavis. Aucune écriture sur un compte réel ne doit être effectuée sans
-> accord explicite de l’utilisateur.
+> YAZIO does not provide a public API. The routes used here can change without
+> notice. Never write to a real account without the user's explicit consent.
 
-## État actuel
+## Current status
 
-Le serveur fournit actuellement :
+The server currently provides:
 
-- FastMCP 4 en Streamable HTTP sur `http://127.0.0.1:8000/mcp` ;
-- route `GET /health` et outil local `health_check` ;
-- cinq outils de lecture : profil, résumé, journal, recherche et produit ;
-- ajout d’un produit consommé et suppression vérifiée d’une entrée ;
-- client HTTP asynchrone avec authentification et refresh OAuth ;
-- configuration et modèles Pydantic tolérants aux champs inconnus ;
-- tests locaux et HTTP simulés, sans connexion à un compte réel.
+- FastMCP 4 over Streamable HTTP at `http://127.0.0.1:8000/mcp`;
+- a `GET /health` route and a local `health_check` tool;
+- five read-only tools: profile, summary, diary, product search, and product
+  details;
+- adding a consumed product and verified deletion of an entry;
+- an asynchronous HTTP client with OAuth authentication and refresh;
+- configuration and Pydantic models that tolerate unknown fields;
+- local and simulated-HTTP tests, with no connection to a real account.
 
-Les cinq lectures sont couvertes localement et ont été exécutées avec succès en
-lecture seule face à l’API privée v22. Cette validation live reste un smoke
-test : elle ne garantit ni la stabilité des routes et schémas, ni toutes les
-combinaisons de paramètres.
+All five reads are covered locally and have been successfully run read-only
+against the private v22 API. This live validation is only a smoke test: it
+does not guarantee route or schema stability, or every parameter combination.
 
-Des tests avec HTTP simulé existent pour les mutations. Pendant la session de
-test manuel décrite ci-dessous, un ajout de produit MCP a été accepté et
-l’entrée est apparue dans `get_user_consumed_items`. La suppression MCP et
-l’ajout d’une entrée manuelle n’ont pas été testés sur un compte réel. Les
-commandes de tests automatisés n’ont pas été relancées pendant cette session.
+HTTP-simulated tests cover mutations. During the manual test session described
+below, a product added through MCP was accepted and appeared in
+`get_user_consumed_items`. MCP deletion and manual-food creation have not
+been tested against a real account. The automated test commands were not run
+again during that session.
 
-### Validation manuelle de l’ajout d’un produit
+### Manual validation of product addition
 
-Le 1er novembre 2026, les appels d’ajout MCP ont d’abord échoué avec HTTP 400
-quand une date était passée dans `daytime`; YAZIO attend ici un créneau de
-repas. Avec `daytime: "snack"`, `serving: "gram"` et une
-`serving_quantity` égale à la quantité, l’entrée MCP est ensuite apparue dans
-`get_user_consumed_items` avec `type: "product"` et les valeurs attendues.
-Une capture native de l’application montrait les mêmes champs fonctionnels.
+On November 1, 2026, MCP addition calls initially failed with HTTP 400 when a
+date was passed as `daytime`; YAZIO expects a meal slot there. With
+`daytime: "snack"`, `serving: "gram"`, and a `serving_quantity` equal to the
+amount, the MCP entry subsequently appeared in `get_user_consumed_items` with
+`type: "product"` and the expected values. A native application capture
+showed the same functional fields.
 
-L’application mobile n’a pas immédiatement actualisé son widget après l’ajout
-MCP. Fermer puis rouvrir l’application a fait apparaître l’entrée. Les lectures
-du résumé quotidien étaient identiques dans les comparaisons effectuées. Ce
-test ne permet pas d’établir pourquoi l’interface était en retard, ni de
-généraliser ce comportement à d’autres versions de l’application ou de l’API.
+The mobile application did not immediately refresh its widget after MCP added
+the entry. Closing and reopening the app made the entry appear. Daily-summary
+reads were identical in the comparisons performed. This test does not explain
+why the UI lagged, nor can it be generalized to other app or API versions.
 
-Le flux réseau a été inspecté avec mitmproxy. Les captures peuvent contenir
-des jetons OAuth et des données de santé : ne pas les partager ni les committer.
+Network traffic was inspected with mitmproxy. Captures can contain OAuth tokens
+and health data: do not share or commit them.
 
-Le plan détaillé et les règles de contribution se trouvent dans
-[AGENTS.md](AGENTS.md).
+The detailed plan and contribution rules are in [AGENTS.md](AGENTS.md).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[Client MCP<br/>Inspector] -->|Streamable HTTP| B[FastMCP<br/>server.py]
-    B --> C[Services métier]
+    A[MCP Client<br/>Inspector] -->|Streamable HTTP| B[FastMCP<br/>server.py]
+    B --> C[Business services]
     C --> D[YazioGateway<br/>Protocol]
     D --> E[YazioHttpClient<br/>httpx.AsyncClient]
-    E -->|HTTPS / JSON| F[API privée<br/>YAZIO v22]
+    E -->|HTTPS / JSON| F[Private YAZIO<br/>v22 API]
     G[Configuration<br/>Pydantic Settings] --> B
     G --> E
 
     classDef client fill:#2563eb,stroke:#1d4ed8,color:#ffffff,stroke-width:2px;
     classDef server fill:#7c3aed,stroke:#6d28d9,color:#ffffff,stroke-width:2px;
-    classDef domain fill:#0891b2,stroke:#0e7490,color:#ffffff,stroke-width:2px;
+    classDef domain fill:#0891b2,stroke:#0f7490,color:#ffffff,stroke-width:2px;
     classDef port fill:#059669,stroke:#047857,color:#ffffff,stroke-width:2px;
     classDef adapter fill:#ea580c,stroke:#c2410c,color:#ffffff,stroke-width:2px;
     classDef external fill:#dc2626,stroke:#b91c1c,color:#ffffff,stroke-width:2px;
@@ -81,43 +78,41 @@ flowchart LR
     class G config;
 ```
 
-Les routes restent des observations communautaires de l’API privée v22 et
-peuvent changer sans préavis.
+The routes remain community observations of the private v22 API and can change
+without notice.
 
-## Outils MCP
+## MCP tools
 
-| Outil | Paramètres | Effet |
+| Tool | Parameters | Effect |
 |---|---|---|
-| `health_check` | aucun | Contrôle local, sans appel à YAZIO |
-| `get_user` | aucun | Lit le profil authentifié |
-| `get_user_daily_summary` | `day` (`YYYY-MM-DD`) | Lit le résumé quotidien |
-| `get_user_consumed_items` | `day` (`YYYY-MM-DD`) | Lit les trois catégories du journal |
-| `search_products` | `query`, `sex`, `countries`, `locales` optionnel | Recherche des produits |
-| `get_product` | `product_id` | Lit un produit et ses nutriments par unité de base |
-| `add_consumed_product` | produit, quantité, repas et heure locale | Ajoute puis vérifie un produit |
-| `delete_consumed_item` | `day`, catégorie et identifiant | Supprime puis vérifie une entrée |
+| `health_check` | none | Local check, without calling YAZIO |
+| `get_user` | none | Reads the authenticated user profile |
+| `get_user_daily_summary` | `day` (`YYYY-MM-DD`) | Reads the daily nutrition summary |
+| `get_user_consumed_items` | `day` (`YYYY-MM-DD`) | Reads the three diary item categories |
+| `search_products` | `query`, `sex`, `countries`, optional `locales` | Searches YAZIO products |
+| `get_product` | `product_id` | Reads product details and nutrients per base unit |
+| `add_consumed_product` | product, amount, meal, and local time | Adds and verifies a product |
+| `delete_consumed_item` | `day`, category, and identifier | Deletes and verifies a diary entry |
 
-`sex` et `countries` sont obligatoires pour la recherche selon les observations
-communautaires. `locales`, lorsqu’il est fourni, est aussi transmis comme
-`Accept-Language` car il influence le classement des résultats.
+`sex` and `countries` are required for search according to community
+observations. When supplied, `locales` is also sent as `Accept-Language`
+because it affects result ranking.
 
-Les outils d’écriture modifient le compte configuré. Ils ne doivent être
-appelés qu’après présentation de l’opération exacte et accord explicite de
-l’utilisateur. `consumed_at` utilise une heure locale sans fuseau au format
-`YYYY-MM-DDTHH:MM:SS`.
+Write tools modify the configured account. They must only be called after the
+exact operation has been presented and the user has agreed. `consumed_at` uses
+a local time without a time-zone offset in the `YYYY-MM-DDTHH:MM:SS` format.
 
-## Installation et lancement
+## Installation and startup
 
-Prérequis : Python 3.10 ou plus récent et
-[`uv`](https://docs.astral.sh/uv/).
+Prerequisites: Python 3.10 or later and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync --dev
 uv run yazio-mcp
 ```
 
-Pour tester le serveur avec MCP Inspector, laissez le serveur tourner puis
-lancez dans un second terminal :
+To test the server with MCP Inspector, leave the server running and run this
+in a second terminal:
 
 ```bash
 npx --yes @modelcontextprotocol/inspector \
@@ -126,35 +121,35 @@ npx --yes @modelcontextprotocol/inspector \
   --protocol-era legacy
 ```
 
-Pour préparer la configuration YAZIO locale :
+To prepare local YAZIO configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Renseignez ensuite `YAZIO_USERNAME` et `YAZIO_PASSWORD` dans `.env`. Ce fichier
-est ignoré par Git. Le `User-Agent` fourni est une valeur observée et instable :
-il devra être remplacé si YAZIO renvoie `version_blocked`.
+Then set `YAZIO_USERNAME` and `YAZIO_PASSWORD` in `.env`. Git ignores this
+file. The provided `User-Agent` is an observed, unstable value and must be
+replaced if YAZIO returns `version_blocked`.
 
-Options réseau :
+Network options:
 
 ```bash
 uv run yazio-mcp --host 127.0.0.1 --port 8080 --path /mcp
 ```
 
-Vérification locale :
+Local check:
 
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-Réponse attendue :
+Expected response:
 
 ```json
 {"status":"ok","service":"yazio-mcp"}
 ```
 
-## Qualité
+## Quality checks
 
 ```bash
 uv run pytest
@@ -162,5 +157,5 @@ uv run ruff check .
 uv run mypy src tests
 ```
 
-Référence communautaire :
+Community reference:
 [yazio-api-specification](https://github.com/yazio-community/yazio-api-specification).
